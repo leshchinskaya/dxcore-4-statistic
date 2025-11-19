@@ -5,6 +5,7 @@ const DATA_URL = './issues_flat.json';
 let rawData = [];
 let chartInstances = {};
 let currentGrouping = 'project'; // 'project', 'assignee', 'board', 'month', 'sprint', 'epic'
+let originalContainerHTML = null; // Store original HTML to restore after file upload
 
 // Table search
 let metricsSearchQuery = '';
@@ -22,21 +23,37 @@ let currentSort = {
     direction: 'desc'
 };
 
-// DOM Elements
-const viewModeRadios = document.getElementsByName('viewMode');
-const tableBody = document.getElementById('metricsTableBody');
-const resetBtn = document.getElementById('resetFilters');
-const tableTitle = document.getElementById('tableTitle');
-const colName = document.getElementById('col-name');
-const openFiltersBtn = document.getElementById('openFiltersBtn');
-const filtersModal = document.getElementById('filtersModalShared');
+// DOM Elements (will be re-initialized after HTML restore)
+let viewModeRadios = document.getElementsByName('viewMode');
+let tableBody = document.getElementById('metricsTableBody');
+let resetBtn = document.getElementById('resetFilters');
+let tableTitle = document.getElementById('tableTitle');
+let colName = document.getElementById('col-name');
+let openFiltersBtn = document.getElementById('openFiltersBtn');
+let filtersModal = document.getElementById('filtersModalShared');
 // filterSummary removed - using tag cloud only
 
 // Details Modal Elements
-const detailsModal = document.getElementById('detailsModal');
-const detailsTitle = document.getElementById('detailsTitle');
-const tasksTableBody = document.getElementById('tasksTableBody');
-const drillDownControls = document.getElementById('drillDownControls');
+let detailsModal = document.getElementById('detailsModal');
+let detailsTitle = document.getElementById('detailsTitle');
+let tasksTableBody = document.getElementById('tasksTableBody');
+let drillDownControls = document.getElementById('drillDownControls');
+
+// Function to re-initialize DOM element references (used after HTML restore)
+function reinitializeDOMReferences() {
+    viewModeRadios = document.getElementsByName('viewMode');
+    tableBody = document.getElementById('metricsTableBody');
+    resetBtn = document.getElementById('resetFilters');
+    tableTitle = document.getElementById('tableTitle');
+    colName = document.getElementById('col-name');
+    openFiltersBtn = document.getElementById('openFiltersBtn');
+    filtersModal = document.getElementById('filtersModalShared');
+    detailsModal = document.getElementById('detailsModal');
+    detailsTitle = document.getElementById('detailsTitle');
+    tasksTableBody = document.getElementById('tasksTableBody');
+    drillDownControls = document.getElementById('drillDownControls');
+    console.log('✅ DOM references reinitialized');
+}
 
 // Toggle additional view modes
 function toggleAdditionalModes() {
@@ -53,11 +70,96 @@ function toggleAdditionalModes() {
 }
 window.toggleAdditionalModes = toggleAdditionalModes;
 
+// Initialize dashboard after data is loaded (used after file upload)
+async function initializeDashboardWithData() {
+    console.log('Starting dashboard initialization...');
+    
+    // Re-initialize DOM references after HTML restore
+    reinitializeDOMReferences();
+    
+    // Populate filters
+    await new Promise(resolve => setTimeout(resolve, 100));
+    try {
+        console.log('Step 1: Populating filters...');
+        populateFilters();
+        console.log('✓ Filters populated');
+    } catch (e) {
+        console.error('❌ Error in populateFilters:', e);
+        throw new Error('populateFilters failed: ' + e.message);
+    }
+    
+    // Apply default date filter: Last 6 months
+    await new Promise(resolve => setTimeout(resolve, 50));
+    console.log('Step 2: Applying default date filter (Last 6 months = 180 days)...');
+    const now = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 180);
+    dateFilter.enabled = true;
+    dateFilter.from = sixMonthsAgo;
+    dateFilter.to = now;
+    updateDateFilterTag();
+    console.log(`✓ Date filter applied: from ${sixMonthsAgo.toLocaleDateString('ru-RU')} to ${now.toLocaleDateString('ru-RU')}`);
+    
+    // Update dashboard
+    await new Promise(resolve => setTimeout(resolve, 100));
+    try {
+        console.log('Step 3: Rendering dashboard...');
+        updateDashboard();
+        console.log('✓ Dashboard rendered');
+    } catch (e) {
+        console.error('❌ Error in updateDashboard:', e);
+        throw new Error('updateDashboard failed: ' + e.message);
+    }
+    
+    // Reattach event listeners (using global DOM references)
+    if (openFiltersBtn) {
+        openFiltersBtn.addEventListener('click', openFiltersModal);
+    }
+    
+    if (viewModeRadios) {
+        viewModeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentGrouping = e.target.value;
+                metricsSearchQuery = '';
+                const searchInput = document.getElementById('metricsTableSearch');
+                if (searchInput) searchInput.value = '';
+                updateDashboard();
+            });
+        });
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetFilters);
+    }
+    
+    // Close modals on outside click
+    const taskModal = document.getElementById('taskDetailModal');
+    const kpiModal = document.getElementById('kpiModal');
+    
+    window.addEventListener('click', (e) => {
+        if (e.target === detailsModal) closeDetails();
+        if (e.target === filtersModal) closeFiltersModal();
+        if (e.target === taskModal) closeTaskDetail();
+        if (e.target === kpiModal) closeKPIModal();
+    });
+    
+    console.log('✅ Dashboard fully initialized');
+}
+
 // Show welcome screen when no data file is available
 function showWelcomeScreen() {
     console.log('📊 No data file found, showing welcome screen');
     
+    // Save original HTML before replacing it
+    if (!originalContainerHTML) {
+        originalContainerHTML = document.querySelector('.container').innerHTML;
+        console.log('✅ Original container HTML saved');
+    }
+    
     document.querySelector('.container').innerHTML = `
+        <!-- Hidden file input -->
+        <input type="file" id="fileInput" accept=".json" style="display: none;">
+        
         <div style="max-width: 800px; margin: 60px auto; padding: 40px; text-align: center;">
             <div style="font-size: 64px; margin-bottom: 20px;">📊</div>
             <h1 style="color: #2c7be5; margin-bottom: 20px;">Добро пожаловать в DXCore4 Analytics</h1>
@@ -77,7 +179,7 @@ function showWelcomeScreen() {
             </div>
             
             <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                <button onclick="document.getElementById('fileInput').click()" style="
+                <button id="welcomeUploadBtn" style="
                     padding: 16px 32px;
                     background: #2c7be5;
                     color: white;
@@ -116,6 +218,18 @@ function showWelcomeScreen() {
             </div>
         </div>
     `;
+    
+    // Attach event listeners after DOM is updated
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('welcomeUploadBtn');
+    
+    if (fileInput && uploadBtn) {
+        uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', handleFileUpload);
+    }
 }
 
 // Initialize
@@ -178,10 +292,15 @@ function updateDateRange() {
 
 async function init() {
     try {
+        console.log('Initializing dashboard...');
+        
+        // Get loading div reference once
+        const loadingDiv = document.querySelector('.loading');
+        
+        // Try to fetch from file
         console.log('Attempting to fetch data from:', DATA_URL);
         
         // Show loading with progress
-        const loadingDiv = document.querySelector('.loading');
         if (loadingDiv) {
             loadingDiv.innerHTML = '<h2>Загрузка данных...</h2><p>Проверка наличия файла данных...</p>';
         }
@@ -298,62 +417,10 @@ async function init() {
         });
 
     } catch (error) {
-        console.error('❌ Error loading data:', error);
-        
-        // If it's a network error (file not found), show welcome screen
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-            console.log('Network error detected, showing welcome screen');
-            showWelcomeScreen();
-            return;
-        }
-        
-        // For other errors, show detailed error message
-        console.error('Error details:', {
-            message: error.message,
-            stack: error.stack,
-            dataUrl: DATA_URL,
-            currentUrl: window.location.href
-        });
-        
-        document.querySelector('.container').innerHTML = `
-            <div class="loading" style="text-align: center; padding: 60px 20px;">
-                <h2 style="color: #e74c3c; margin-bottom: 20px;">⚠️ Ошибка обработки данных</h2>
-                <p style="font-size: 16px; margin-bottom: 10px;">Произошла ошибка при обработке файла данных</p>
-                <p style="color: #666; margin-bottom: 20px;">Ошибка: <code style="color: #e74c3c;">${error.message}</code></p>
-                
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px auto; max-width: 600px; text-align: left;">
-                    <h3 style="margin-top: 0; color: #2c3e50;">Возможные причины:</h3>
-                    <ul style="line-height: 1.8;">
-                        <li>Файл поврежден или имеет неправильный формат JSON</li>
-                        <li>Недостаточно памяти для обработки большого файла</li>
-                        <li>Проблемы с кодировкой файла</li>
-                        <li>Откройте консоль браузера (F12) для подробностей</li>
-                    </ul>
-                </div>
-                
-                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
-                    <button onclick="document.getElementById('fileInput').click()" style="
-                        padding: 12px 24px;
-                        background: #2c7be5;
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        font-size: 14px;
-                        cursor: pointer;
-                    ">📤 Загрузить другой файл</button>
-                    
-                    <button onclick="location.reload()" style="
-                        padding: 12px 24px;
-                        background: #95a5a6;
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        font-size: 14px;
-                        cursor: pointer;
-                    ">🔄 Попробовать снова</button>
-                </div>
-            </div>
-        `;
+        // Any error loading data - just show welcome screen
+        console.log('📊 No data available, showing welcome screen');
+        console.log('Technical details (for debugging):', error.message);
+        showWelcomeScreen();
     }
 }
 
@@ -4187,38 +4254,32 @@ async function handleFileUpload(event) {
         // Update global data
         rawData = newData;
         
-        // Reinitialize dashboard
-        loadingDiv.innerHTML = '<h2>Обновление дашборда...</h2><p>Пересчет метрик</p>';
+        // Restore original HTML
+        loadingDiv.innerHTML = '<h2>Восстановление интерфейса...</h2><p>Подготовка дашборда</p>';
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Repopulate filters
-        populateFilters();
+        if (originalContainerHTML) {
+            console.log('Restoring original container HTML...');
+            document.querySelector('.container').innerHTML = originalContainerHTML;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        } else {
+            console.warn('Original HTML not found, reloading page...');
+            location.reload();
+            return;
+        }
         
-        // Reset date filter to last 6 months
-        const now = new Date();
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 180);
-        dateFilter.enabled = true;
-        dateFilter.from = sixMonthsAgo;
-        dateFilter.to = now;
-        updateDateFilterTag();
-        
-        // Update dashboard
-        await new Promise(resolve => setTimeout(resolve, 100));
-        updateDashboard();
-        
-        // Update date range display
-        updateDateRange();
-        
-        // Success message
-        loadingDiv.innerHTML = `<h2>✅ Данные загружены!</h2><p>Обработано ${newData.length} задач</p>`;
-        setTimeout(() => {
+        // Remove loading overlay
+        if (loadingDiv && loadingDiv.parentElement) {
             document.body.removeChild(loadingDiv);
-        }, 1500);
+        }
         
-        console.log('✅ Dashboard updated with uploaded data');
+        // Initialize dashboard with uploaded data
+        console.log('Initializing dashboard with uploaded data...');
         
-        // Show notification
+        // Reinitialize all event listeners and dashboard
+        await initializeDashboardWithData();
+        
+        // Show success notification
         showNotification(`Успешно загружено ${newData.length} задач из файла ${file.name}`, 'success');
         
     } catch (error) {
