@@ -53,6 +53,71 @@ function toggleAdditionalModes() {
 }
 window.toggleAdditionalModes = toggleAdditionalModes;
 
+// Show welcome screen when no data file is available
+function showWelcomeScreen() {
+    console.log('📊 No data file found, showing welcome screen');
+    
+    document.querySelector('.container').innerHTML = `
+        <div style="max-width: 800px; margin: 60px auto; padding: 40px; text-align: center;">
+            <div style="font-size: 64px; margin-bottom: 20px;">📊</div>
+            <h1 style="color: #2c7be5; margin-bottom: 20px;">Добро пожаловать в DXCore4 Analytics</h1>
+            <p style="font-size: 18px; color: #666; margin-bottom: 40px; line-height: 1.6;">
+                Для начала работы загрузите файл с данными из Jira
+            </p>
+            
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 12px; margin-bottom: 30px; text-align: left;">
+                <h3 style="margin-top: 0; color: #2c3e50; margin-bottom: 20px;">
+                    📋 Как получить данные из Jira:
+                </h3>
+                <ol style="line-height: 2; font-size: 16px; color: #555;">
+                    <li>Запустите скрипт экспорта: <code style="background: #fff; padding: 4px 8px; border-radius: 4px; color: #e74c3c;">./jira_metrics.sh</code></li>
+                    <li>Дождитесь создания файла <code style="background: #fff; padding: 4px 8px; border-radius: 4px;">issues_flat.json</code></li>
+                    <li>Нажмите кнопку ниже, чтобы загрузить файл</li>
+                </ol>
+            </div>
+            
+            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="document.getElementById('fileInput').click()" style="
+                    padding: 16px 32px;
+                    background: #2c7be5;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    box-shadow: 0 4px 12px rgba(44, 123, 229, 0.3);
+                    transition: all 0.3s;
+                ">
+                    📤 Загрузить файл с данными
+                </button>
+                
+                <button onclick="location.reload()" style="
+                    padding: 16px 32px;
+                    background: #95a5a6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                ">
+                    🔄 Обновить страницу
+                </button>
+            </div>
+            
+            <div style="margin-top: 40px; padding: 20px; background: #e8f4f8; border-radius: 8px; text-align: left;">
+                <h4 style="margin-top: 0; color: #2c7be5;">💡 Совет:</h4>
+                <p style="color: #555; margin: 0; line-height: 1.6;">
+                    Если вы разрабатываете локально, положите файл <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">issues_flat.json</code> 
+                    в корневую папку проекта, и он загрузится автоматически при следующем обновлении страницы.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
 // Initialize
 function updateDateRange() {
     const dateRangeText = document.getElementById('dateRangeText');
@@ -113,16 +178,22 @@ function updateDateRange() {
 
 async function init() {
     try {
-        console.log('Fetching data from:', DATA_URL);
+        console.log('Attempting to fetch data from:', DATA_URL);
         
         // Show loading with progress
         const loadingDiv = document.querySelector('.loading');
         if (loadingDiv) {
-            loadingDiv.innerHTML = '<h2>Загрузка данных...</h2><p>Файл: ~8MB, ~118K строк</p>';
+            loadingDiv.innerHTML = '<h2>Загрузка данных...</h2><p>Проверка наличия файла данных...</p>';
         }
         
         const response = await fetch(DATA_URL);
         console.log('Response status:', response.status);
+        
+        // If file not found, show friendly message instead of error
+        if (response.status === 404) {
+            showWelcomeScreen();
+            return;
+        }
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -228,6 +299,15 @@ async function init() {
 
     } catch (error) {
         console.error('❌ Error loading data:', error);
+        
+        // If it's a network error (file not found), show welcome screen
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            console.log('Network error detected, showing welcome screen');
+            showWelcomeScreen();
+            return;
+        }
+        
+        // For other errors, show detailed error message
         console.error('Error details:', {
             message: error.message,
             stack: error.stack,
@@ -237,30 +317,41 @@ async function init() {
         
         document.querySelector('.container').innerHTML = `
             <div class="loading" style="text-align: center; padding: 60px 20px;">
-                <h2 style="color: #e74c3c; margin-bottom: 20px;">⚠️ Ошибка загрузки данных</h2>
-                <p style="font-size: 16px; margin-bottom: 10px;">Не удалось загрузить <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">issues_flat.json</code></p>
+                <h2 style="color: #e74c3c; margin-bottom: 20px;">⚠️ Ошибка обработки данных</h2>
+                <p style="font-size: 16px; margin-bottom: 10px;">Произошла ошибка при обработке файла данных</p>
                 <p style="color: #666; margin-bottom: 20px;">Ошибка: <code style="color: #e74c3c;">${error.message}</code></p>
                 
                 <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px auto; max-width: 600px; text-align: left;">
-                    <h3 style="margin-top: 0; color: #2c3e50;">Проверьте:</h3>
-                    <ol style="line-height: 1.8;">
-                        <li>Локальный сервер запущен: <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">./start_dashboard.sh</code></li>
-                        <li>Файл существует: <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">ls -lh issues_flat.json</code></li>
-                        <li>Сервер работает на порту 8080: <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">lsof -ti:8080</code></li>
-                        <li>Откройте консоль браузера (F12) для деталей</li>
-                    </ol>
+                    <h3 style="margin-top: 0; color: #2c3e50;">Возможные причины:</h3>
+                    <ul style="line-height: 1.8;">
+                        <li>Файл поврежден или имеет неправильный формат JSON</li>
+                        <li>Недостаточно памяти для обработки большого файла</li>
+                        <li>Проблемы с кодировкой файла</li>
+                        <li>Откройте консоль браузера (F12) для подробностей</li>
+                    </ul>
                 </div>
                 
-                <button onclick="location.reload()" style="
-                    padding: 12px 24px;
-                    background: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    font-size: 14px;
-                    cursor: pointer;
-                    margin-top: 20px;
-                ">🔄 Попробовать снова</button>
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                    <button onclick="document.getElementById('fileInput').click()" style="
+                        padding: 12px 24px;
+                        background: #2c7be5;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                    ">📤 Загрузить другой файл</button>
+                    
+                    <button onclick="location.reload()" style="
+                        padding: 12px 24px;
+                        background: #95a5a6;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                    ">🔄 Попробовать снова</button>
+                </div>
             </div>
         `;
     }
