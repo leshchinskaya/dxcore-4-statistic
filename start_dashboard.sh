@@ -18,6 +18,6 @@ fi
 sleep 1
 
 echo "Starting local server on port 8080..."
-echo "Open http://localhost:8080/dashboard.html in your browser"
+echo "Open http://localhost:8080/index.html in your browser"
 python3 -m http.server 8080
 
