@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DXCore4 Analytics</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- Chart.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <div class="header-main">
+                <div class="header-left">
+                    <div class="logo">
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="40" height="40" rx="8" fill="#2c7be5"/>
+                            <path d="M12 20L18 26L28 14" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="header-text">
+                        <h1>Аналитика проектов и команд</h1>
+                        <div class="date-range-info" id="dateRangeInfo">
+                            <span class="date-range-icon">📅</span>
+                            <span id="dateRangeText">Загрузка...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="handleFileUpload(event)">
+                    <button class="btn-upload" onclick="document.getElementById('fileInput').click()" title="Загрузить свой файл issues_flat.json">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        Загрузить данные
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Table of Contents (TOC) - Side Navigation -->
+        <nav id="tocNav" class="toc-nav">
+            <div class="toc-header">
+                <h3>Навигация</h3>
+                <button class="toc-toggle" onclick="toggleTOC()" title="Свернуть/Развернуть">▶</button>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="toc-actions">
+                <button class="toc-action-btn" onclick="document.getElementById('openDateFilterBtn').click()" title="Открыть фильтр периода">
+                    📅 Период
+                </button>
+                <button class="toc-action-btn" onclick="document.getElementById('openFiltersBtn').click()" title="Открыть фильтры">
+                    ⚙️ Фильтры
+                </button>
+            </div>
+            
+            <ul class="toc-list" id="tocList">
+                <!-- Will be populated by JS -->
+            </ul>
+        </nav>
+
+        <!-- Main Navigation Tabs -->
+        <div class="main-tabs">
+            <button class="main-tab-btn active" data-tab="metrics" onclick="switchMainTab('metrics')">
+                📊 Метрики
+            </button>
+            <button class="main-tab-btn" data-tab="trends" onclick="switchMainTab('trends')">
+                📈 Тренды
+            </button>
+            <button class="main-tab-btn" data-tab="math" onclick="switchMainTab('math')">
+                🧮 Математика
+            </button>
+        </div>
+
+        <!-- METRICS TAB -->
+        <div id="metricsTab" class="tab-content active">
+            <!-- Controls / Filters for Metrics -->
+            <div class="controls">
+                <!-- View Mode Switcher -->
+                <div class="control-group radio-group" id="viewModeGroup">
+                <label>Режим просмотра:</label>
+                <div class="radio-options">
+                    <!-- Main 3 modes - always visible -->
+                    <label class="radio-label">
+                        <input type="radio" name="viewMode" value="project" checked>
+                        По Проектам
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="viewMode" value="assignee">
+                        По Исполнителям
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="viewMode" value="board">
+                        По Направлениям
+                    </label>
+                    
+                    <!-- Additional modes - hidden by default -->
+                    <div id="additionalModes" class="additional-modes" style="display: none;">
+                        <label class="radio-label">
+                            <input type="radio" name="viewMode" value="month">
+                            По Месяцам
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="viewMode" value="sprint">
+                            По Спринтам
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="viewMode" value="epic">
+                            По Эпикам
+                        </label>
+                    </div>
+                    
+                    <!-- Toggle button -->
+                    <button class="btn-more" id="toggleMoreModes" onclick="toggleAdditionalModes()">
+                        <span id="moreModesBtnText">Еще ▼</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="separator"></div>
+
+            <button id="openDateFilterBtn" class="btn-filters">📅 Период</button>
+            <button id="openFiltersBtn" class="btn-filters">⚙️ Фильтры</button>
+            <button id="resetFilters" class="btn-reset">Сбросить</button>
+        </div>
+        
+        <!-- Selected Filters Info (Tag Cloud) -->
+            <div class="filters-info-block">
+                <div class="filter-tags-container" id="filterTagsContainer">
+                    <!-- Tags populated by JS -->
+                </div>
+            </div>
+            <!-- KPI Cards -->
+            <div class="summary-cards" id="kpi-section">
+            <div class="card clickable-card card-performance" onclick="openKPIDetails('performance')" title="Кликните для просмотра детальной информации по производительности команды">
+                <div class="card-icon">⚡</div>
+                <h3>Ср. Производительность</h3>
+                <div class="value" id="avgPerf">-</div>
+                <div class="sub-text">Оценка/Затрачено в закрытых задачах</div>
+            </div>
+            <div class="card clickable-card card-cycle" onclick="openKPIDetails('cycle')" title="Кликните для просмотра детальной информации по времени выполнения задач">
+                <div class="card-icon">⏱️</div>
+                <h3>Ср. Время вып.</h3>
+                <div class="value" id="avgCycle">-</div>
+                <div class="cycle-details">
+                    <span class="cycle-label">Все задачи:</span> <span id="avgCycleAll">-</span>
+                    <br>
+                    <span class="cycle-label">Без багов:</span> <span id="avgCycleNoBugs">-</span>
+                </div>
+                <div class="sub-text">от Todo до Done</div>
+            </div>
+            <div class="card clickable-card card-debug" onclick="openKPIDetails('debug')" title="Кликните для просмотра детальной информации по времени отладки">
+                <div class="card-icon">🐛</div>
+                <h3>Ср. Отладка</h3>
+                <div class="value" id="avgDebug">-</div>
+                <div class="sub-text">Затраты на баги / Общие затраты</div>
+            </div>
+            <div class="card clickable-card card-comm" onclick="openKPIDetails('comm')" title="Кликните для просмотра детальной информации по коммуникациям">
+                <div class="card-icon">💬</div>
+                <h3>Ср. Коммуникации</h3>
+                <div class="value" id="avgComm">-</div>
+                <div class="sub-text">Затраты на сервис-таски / Общие затраты</div>
+            </div>
+            <div class="card clickable-card card-cr" onclick="openKPIDetails('cr')" title="Кликните для просмотра списка всех Change Requests">
+                <div class="card-icon">🔄</div>
+                <h3>Всего Change Requests</h3>
+                <div class="value" id="totalCR">-</div>
+                <div class="sub-text">Задачи с меткой CR</div>
+            </div>
+        </div>
+
+        <!-- Detailed Table -->
+        <div class="table-container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 id="tableTitle">Детальные метрики по Проектам</h3>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <input 
+                        type="text" 
+                        id="metricsTableSearch" 
+                        placeholder="🔍 Поиск..." 
+                        style="display: none; padding: 8px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; width: 250px; transition: all 0.3s;"
+                        oninput="handleMetricsSearch()"
+                    >
+                    <button class="btn-export" onclick="exportMetricsToExcel()">
+                        📊 Экспорт в Excel
+                    </button>
+                    <small style="color: #666; font-style: italic;">Нажмите на строку для просмотра проблемных задач</small>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th id="col-name" class="sortable" onclick="handleSort('sortName')">
+                            Проект <span id="icon-sortName" class="sort-icon"></span>
+                        </th>
+                        <th class="sortable" onclick="handleSort('sortCycle')" title="Среднее время перехода задачи из Todo в Done">
+                            Ср. время выполнения <span id="icon-sortCycle" class="sort-icon"></span>
+                        </th>
+                        <th class="sortable" onclick="handleSort('sortPerf')" title="Оценка / Затраченное время">
+                            Производительность <span id="icon-sortPerf" class="sort-icon"></span>
+                        </th>
+                        <th class="sortable" onclick="handleSort('sortDebug')" title="Время на Баги / Время на Таски">
+                            Процент отладки <span id="icon-sortDebug" class="sort-icon"></span>
+                        </th>
+                        <th class="sortable" onclick="handleSort('sortComm')" title="Время на Service Task / Общее время">
+                            Процент коммуникаций <span id="icon-sortComm" class="sort-icon"></span>
+                        </th>
+                        <th class="sortable" onclick="handleSort('sortCR')" title="Количество задач с меткой CR">
+                            Кол-во CR <span id="icon-sortCR" class="sort-icon"></span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="metricsTableBody">
+                    <!-- Rows populated by JS -->
+                </tbody>
+            </table>
+
+            <!-- Charts -->
+            <div class="charts-grid" style="margin-top: 30px;">
+                <div class="chart-container">
+                    <h3>Производительность (%) <small style="color: #999; font-size: 11px; font-weight: normal;">▸ Нажмите на столбик для деталей</small></h3>
+                    <canvas id="perfChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Ср. время выполнения (Дни) <small style="color: #999; font-size: 11px; font-weight: normal;">▸ Нажмите на столбик для деталей</small></h3>
+                    <canvas id="cycleChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Распределение времени (Часы) <small style="color: #999; font-size: 11px; font-weight: normal;">▸ Нажмите на столбик для деталей</small></h3>
+                    <canvas id="distChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Size Analysis -->
+        <div class="size-analysis-section" style="margin-top: 50px;">
+            <h3 style="margin-bottom: 20px;">📊 Анализ размеров задач</h3>
+            <div class="size-analysis-grid">
+                <div class="size-card">
+                    <div class="size-card-header">
+                        <span class="size-icon">🟢</span>
+                        <h4>Маленькие задачи</h4>
+                        <span class="size-range">< 4 часа</span>
+                    </div>
+                    <div class="size-card-body">
+                        <div class="size-stat">
+                            <span class="size-stat-label">Количество:</span>
+                            <span class="size-stat-value" id="smallTasksCount">-</span>
+                        </div>
+                        <div class="size-stat">
+                            <span class="size-stat-label">Ср. производительность:</span>
+                            <span class="size-stat-value" id="smallTasksPerf">-</span>
+                        </div>
+                        <div class="size-stat">
+                            <span class="size-stat-label">Ср. время цикла:</span>
+                            <span class="size-stat-value" id="smallTasksCycle">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-card-header">
+                        <span class="size-icon">🟡</span>
+                        <h4>Средние задачи</h4>
+                        <span class="size-range">4-16 часов</span>
+                    </div>
+                    <div class="size-card-body">
+                        <div class="size-stat">
+                            <span class="size-stat-label">Количество:</span>
+                            <span class="size-stat-value" id="mediumTasksCount">-</span>
+                        </div>
+                        <div class="size-stat">
+                            <span class="size-stat-label">Ср. производительность:</span>
+                            <span class="size-stat-value" id="mediumTasksPerf">-</span>
+                        </div>
+                        <div class="size-stat">
+                            <span class="size-stat-label">Ср. время цикла:</span>
+                            <span class="size-stat-value" id="mediumTasksCycle">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-card-header">
+                        <span class="size-icon">🔴</span>
+                        <h4>Большие задачи</h4>
+                        <span class="size-range">> 16 часов</span>
+                    </div>
+                    <div class="size-card-body">
+                        <div class="size-stat">
+                            <span class="size-stat-label">Количество:</span>
+                            <span class="size-stat-value" id="largeTasksCount">-</span>
+                        </div>
+                        <div class="size-stat">
+                            <span class="size-stat-label">Ср. производительность:</span>
+                            <span class="size-stat-value" id="largeTasksPerf">-</span>
+                        </div>
+                        <div class="size-stat">
+                            <span class="size-stat-label">Ср. время цикла:</span>
+                            <span class="size-stat-value" id="largeTasksCycle">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="charts-grid" style="margin-top: 20px;">
+                <div class="chart-container">
+                    <h4>Распределение по размерам</h4>
+                    <canvas id="sizeDistributionChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h4>Производительность по размерам</h4>
+                    <canvas id="sizePerformanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Panel - Moved to the end -->
+        <div id="alertsPanel" class="alerts-panel" style="display: none; margin-top: 30px;">
+            <div class="alerts-header">
+                <h3>⚠️ Проблемные зоны</h3>
+                <button class="btn-close-alerts" onclick="closeAlerts()">✕</button>
+            </div>
+            <div id="alertsList" class="alerts-list">
+                <!-- Alerts populated by JS -->
+            </div>
+        </div>
+
+        </div>
+        <!-- End of Metrics Content -->
+
+        </div>
+        <!-- End of METRICS TAB -->
+
+        <!-- TRENDS TAB -->
+        <div id="trendsTab" class="tab-content">
+            <!-- Empty controls block for consistent spacing -->
+            <div class="controls" style="min-height: 0; padding: 0; margin: 0; border: none; box-shadow: none; background: transparent;">
+            </div>
+            
+            <!-- Selected Filters Info for Trends (tags only, no buttons) -->
+            <div class="filters-info-block">
+                <div class="filter-tags-container" id="filterTagsContainerTrends">
+                    <!-- Tags populated by JS -->
+                </div>
+            </div>
+
+            <!-- Trends Content -->
+            <div id="trendsSection" class="main-section">
+                <h2 style="margin-bottom: 10px;">📈 Трендовый анализ</h2>
+                <p id="trendComparisonInfo" style="color: #666; font-size: 14px; margin-bottom: 30px; font-style: italic;">
+                    Загрузка информации о периодах...
+                </p>
+                
+                <!-- Trend Summary Cards -->
+                <div class="summary-cards">
+                    <div class="card">
+                        <div class="card-icon">⚡</div>
+                        <h3>Производительность</h3>
+                        <div class="value" id="trendPerf">-</div>
+                        <div class="trend-indicator" id="trendPerfChange">-</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">⏱️</div>
+                        <h3>Время выполнения</h3>
+                        <div class="value" id="trendCycle">-</div>
+                        <div class="trend-indicator" id="trendCycleChange">-</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">🐛</div>
+                        <h3>Отладка</h3>
+                        <div class="value" id="trendDebug">-</div>
+                        <div class="trend-indicator" id="trendDebugChange">-</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">💬</div>
+                        <h3>Коммуникации</h3>
+                        <div class="value" id="trendComm">-</div>
+                        <div class="trend-indicator" id="trendCommChange">-</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">🔄</div>
+                        <h3>Change Requests</h3>
+                        <div class="value" id="trendCR">-</div>
+                        <div class="trend-indicator" id="trendCRChange">-</div>
+                    </div>
+                </div>
+
+                <!-- Trend Charts Container (can be replaced by grouped trends) -->
+                <div id="trendsChartsContainer">
+                    <div class="charts-grid">
+                        <div class="chart-container">
+                            <h3>Производительность за последние 12 месяцев</h3>
+                            <canvas id="trendPerfChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Среднее время выполнения за последние 12 месяцев</h3>
+                            <canvas id="trendCycleChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Change Requests за последние 12 месяцев</h3>
+                            <canvas id="trendCRChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- End of TRENDS TAB -->
+
+        <!-- MATH TAB -->
+        <div id="mathTab" class="tab-content">
+            <div class="math-content">
+                <h2>🧮 Математика и принципы расчетов</h2>
+                <p class="math-intro">На этой странице описаны все формулы и логика расчета метрик, используемых в дашборде.</p>
+
+                <!-- 1. Производительность -->
+                <div class="math-section">
+                    <h3>1. 📈 Производительность (Performance)</h3>
+                    <div class="formula-box">
+                        <div class="formula">
+                            <strong>Формула:</strong><br>
+                            Производительность = (Σ Original Estimate / Σ Time Spent) × 100%
+                        </div>
+                    </div>
+                    <div class="math-description">
+                        <p><strong>Что показывает:</strong> Отношение запланированного времени к фактически затраченному. Значение > 100% означает, что команда работает быстрее плана.</p>
+                        <p><strong>Пример:</strong></p>
+                        <ul>
+                            <li>Задача 1: Оценка = 8 часов, Затрачено = 6 часов</li>
+                            <li>Задача 2: Оценка = 4 часа, Затрачено = 5 часов</li>
+                            <li>Производительность = (8 + 4) / (6 + 5) × 100% = 12 / 11 × 100% ≈ <strong>109%</strong></li>
+                        </ul>
+                        <p><strong>Интерпретация:</strong></p>
+                        <ul>
+                            <li>🟢 > 100% — команда работает эффективно, быстрее оценок</li>
+                            <li>🟡 80-100% — нормальная эффективность</li>
+                            <li>🔴 < 80% — задачи занимают больше времени, чем планировалось</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 2. Среднее время выполнения -->
+                <div class="math-section">
+                    <h3>2. ⏱️ Среднее время выполнения (Cycle Time)</h3>
+                    <div class="formula-box">
+                        <div class="formula">
+                            <strong>Формула:</strong><br>
+                            Cycle Time = Среднее от (ResolutionDate - CreatedDate) для Task
+                        </div>
+                    </div>
+                    <div class="math-description">
+                        <p><strong>Что показывает:</strong> Среднее время от создания задачи до её закрытия (только для типа "Task").</p>
+                        <p><strong>Пример:</strong></p>
+                        <ul>
+                            <li>Task 1: Создана 1 ноября, Закрыта 5 ноября → 4 дня</li>
+                            <li>Task 2: Создана 3 ноября, Закрыта 6 ноября → 3 дня</li>
+                            <li>Task 3: Создана 2 ноября, Закрыта 10 ноября → 8 дней</li>
+                            <li>Среднее время = (4 + 3 + 8) / 3 ≈ <strong>5 дней</strong></li>
+                        </ul>
+                        <p><strong>Интерпретация:</strong></p>
+                        <ul>
+                            <li>🟢 ≤ 3 дня — быстрое выполнение</li>
+                            <li>🟡 3-5 дней — нормальное время</li>
+                            <li>🔴 > 5 дней — долгое выполнение, возможно есть блокеры</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 3. Процент отладки -->
+                <div class="math-section">
+                    <h3>3. 🐛 Процент отладки (Debug %)</h3>
+                    <div class="formula-box">
+                        <div class="formula">
+                            <strong>Формула:</strong><br>
+                            Debug % = (Σ Time Spent на закрытые Bug / Σ Time Spent на всё) × 100%
+                        </div>
+                        <div class="formula-note">
+                            <strong>Условия:</strong>
+                            <ul>
+                                <li>✅ Bug должен быть закрыт (resolutiondate != null)</li>
+                                <li>✅ Только на досках: Flutter, iOS, Android, Frontend, Backend</li>
+                                <li>✅ "Всё" = Bug + Task + Service Task на этих досках</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="math-description">
+                        <p><strong>Что показывает:</strong> Какую долю времени команда тратит на исправление багов.</p>
+                        <p><strong>Пример:</strong></p>
+                        <ul>
+                            <li>Bug (закрыт, Flutter): 10 часов ✅</li>
+                            <li>Bug (открыт, Flutter): 5 часов ❌ (не закрыт)</li>
+                            <li>Task (Flutter): 30 часов ✅</li>
+                            <li>Service Task (iOS): 5 часов ✅</li>
+                            <li>Bug (закрыт, QA): 8 часов ❌ (не та доска)</li>
+                            <li>Debug % = 10 / (10 + 30 + 5) × 100% ≈ <strong>22.2%</strong></li>
+                        </ul>
+                        <p><strong>Интерпретация:</strong></p>
+                        <ul>
+                            <li>🟢 < 20% — низкий процент багов, хорошее качество</li>
+                            <li>🟡 20-35% — нормальный уровень</li>
+                            <li>🔴 > 35% — высокий процент отладки, возможны проблемы с качеством</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 4. Процент коммуникаций -->
+                <div class="math-section">
+                    <h3>4. 💬 Процент коммуникаций (Communication %)</h3>
+                    <div class="formula-box">
+                        <div class="formula">
+                            <strong>Формула:</strong><br>
+                            Communication % = (Σ Time Spent на Service Task / Σ Time Spent на всё) × 100%
+                        </div>
+                    </div>
+                    <div class="math-description">
+                        <p><strong>Что показывает:</strong> Какую долю времени команда тратит на коммуникации, митинги, сервисные задачи.</p>
+                        <p><strong>Пример:</strong></p>
+                        <ul>
+                            <li>Task: 40 часов</li>
+                            <li>Service Task: 10 часов (митинги, ревью, планирование)</li>
+                            <li>Bug: 5 часов</li>
+                            <li>Communication % = 10 / (40 + 10 + 5) × 100% ≈ <strong>18.2%</strong></li>
+                        </ul>
+                        <p><strong>Интерпретация:</strong></p>
+                        <ul>
+                            <li>🟢 15-25% — здоровый баланс коммуникаций</li>
+                            <li>🟡 < 15% — возможно недостаточная координация</li>
+                            <li>🔴 > 30% — слишком много времени на митинги</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 5. Change Requests -->
+                <div class="math-section">
+                    <h3>5. 🔧 Change Requests (CR)</h3>
+                    <div class="formula-box">
+                        <div class="formula">
+                            <strong>Критерии определения CR:</strong><br>
+                            Задача считается CR, если выполняются ВСЕ условия:
+                        </div>
+                        <div class="formula-note">
+                            <strong>Условие 1 - Доска:</strong>
+                            <ul>
+                                <li>Board IN (iOS, Android, Flutter, Frontend, Backend)</li>
+                            </ul>
+                            <strong>Условие 2 - Хотя бы одно из:</strong>
+                            <ul>
+                                <li>✅ Component = "CR"</li>
+                                <li>✅ Label = "CR"</li>
+                                <li>✅ Type = "Improvement"</li>
+                                <li>✅ Summary содержит "CR" (целое слово)</li>
+                                <li>✅ Summary содержит "Доработка"</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="math-description">
+                        <p><strong>Что показывает:</strong> Количество доработок и изменений требований.</p>
+                        <p><strong>Примеры CR:</strong></p>
+                        <ul>
+                            <li>✅ [Flutter] Task с label "CR"</li>
+                            <li>✅ [iOS] Improvement "Добавить новую фичу"</li>
+                            <li>✅ [Backend] "CR-1234: Изменить API"</li>
+                            <li>✅ [Frontend] "Доработка формы"</li>
+                            <li>❌ [QA] Task с label "CR" (не та доска)</li>
+                            <li>❌ [Flutter] Bug с label "CR" (не подходит по типу)</li>
+                        </ul>
+                        <p><strong>Интерпретация:</strong></p>
+                        <ul>
+                            <li>🟢 Снижение CR → улучшение планирования</li>
+                            <li>🔴 Рост CR → проблемы с требованиями</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 6. Группировка данных -->
+                <div class="math-section">
+                    <h3>6. 📊 Группировка и фильтрация</h3>
+                    <div class="math-description">
+                        <p><strong>Режимы группировки:</strong></p>
+                        <ul>
+                            <li><strong>По Проектам:</strong> Метрики рассчитываются отдельно для каждого project_key</li>
+                            <li><strong>По Исполнителям:</strong> Метрики рассчитываются для каждого assignee</li>
+                            <li><strong>По Направлениям:</strong> Метрики рассчитываются для каждого board</li>
+                            <li><strong>По Месяцам:</strong> Группировка по месяцу закрытия (resolutiondate)</li>
+                            <li><strong>По Спринтам:</strong> Группировка по sprint (задача может быть в нескольких спринтах)</li>
+                            <li><strong>По Эпикам:</strong> Группировка по epic_link</li>
+                        </ul>
+                        
+                        <p><strong>Фильтры:</strong></p>
+                        <ul>
+                            <li><strong>Направления:</strong> Показывать только задачи с выбранных board</li>
+                            <li><strong>Проекты:</strong> Показывать только задачи из выбранных project_key</li>
+                            <li><strong>Исполнители:</strong> Показывать только задачи назначенных исполнителей</li>
+                            <li><strong>Спринты:</strong> Показывать только задачи из выбранных спринтов</li>
+                            <li><strong>Эпики:</strong> Показывать только задачи из выбранных epic_link</li>
+                        </ul>
+                        
+                        <p><strong>Логика применения:</strong> Фильтры применяются методом AND (все условия должны выполняться).</p>
+                    </div>
+                </div>
+
+                <!-- 7. Трендовый анализ -->
+                <div class="math-section">
+                    <h3>7. 📈 Трендовый анализ</h3>
+                    <div class="math-description">
+                        <p><strong>Расчет трендов:</strong></p>
+                        <ul>
+                            <li><strong>Период:</strong> Последние 12 месяцев</li>
+                            <li><strong>Группировка:</strong> По месяцу закрытия задачи (resolutiondate)</li>
+                            <li><strong>Метрики:</strong> Для каждого месяца рассчитываются те же показатели (Performance, Cycle Time, CR Count)</li>
+                        </ul>
+                        
+                        <p><strong>Скользящее среднее (Moving Average):</strong></p>
+                        <div class="formula-box">
+                            <div class="formula">
+                                MA(3) = (Value[n-2] + Value[n-1] + Value[n]) / 3
+                            </div>
+                        </div>
+                        <p>Сглаживает колебания и показывает общий тренд.</p>
+                        
+                        <p><strong>Изменение vs прошлый месяц:</strong></p>
+                        <div class="formula-box">
+                            <div class="formula">
+                                Change = ((Current - Previous) / Previous) × 100%
+                            </div>
+                        </div>
+                        <ul>
+                            <li>🟢 > +2% — положительная динамика</li>
+                            <li>⚪ -2% до +2% — стабильно</li>
+                            <li>🔴 < -2% — отрицательная динамика</li>
+                        </ul>
+                        
+                        <p><strong>Особенность CR:</strong> Для Change Requests инвертирована логика цвета:</p>
+                        <ul>
+                            <li>🟢 Уменьшение CR — хорошо</li>
+                            <li>🔴 Увеличение CR — плохо</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 8. Цветовое кодирование -->
+                <div class="math-section">
+                    <h3>8. 🎨 Цветовое кодирование в таблице деталей</h3>
+                    <div class="math-description">
+                        <p><strong>Время жизни задачи (Cycle Time):</strong></p>
+                        <ul>
+                            <li>🟢 ≤ 3 дня — зеленый (быстро)</li>
+                            <li>🟡 3-5 дней — желтый (нормально)</li>
+                            <li>🔴 > 5 дней — красный (долго)</li>
+                        </ul>
+                        
+                        <p><strong>Производительность задачи:</strong></p>
+                        <ul>
+                            <li>🟢 > 100% — зеленый (быстрее плана)</li>
+                            <li>🟡 80-100% — желтый (по плану)</li>
+                            <li>🔴 < 80% — красный (медленнее плана)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Примечания -->
+                <div class="math-section">
+                    <h3>📝 Важные примечания</h3>
+                    <div class="math-description">
+                        <ul>
+                            <li><strong>Исключения:</strong> Задачи без timespent не учитываются в расчете производительности</li>
+                            <li><strong>Округление:</strong> Все проценты округляются до 1 знака после запятой</li>
+                            <li><strong>Нулевые значения:</strong> Если знаменатель = 0, показатель = 0%</li>
+                            <li><strong>Типы задач:</strong> 
+                                <ul>
+                                    <li>Task — основные задачи разработки</li>
+                                    <li>Bug — дефекты и ошибки</li>
+                                    <li>Service Task — митинги, планирование, ревью</li>
+                                    <li>Improvement — улучшения и CR</li>
+                                </ul>
+                            </li>
+                            <li><strong>Разрешенные доски для Debug%:</strong> Flutter, iOS, Android, Frontend, Backend</li>
+                            <li><strong>Разрешенные доски для CR:</strong> iOS, Android, Flutter, Frontend, Backend</li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- End of MATH TAB -->
+
+    </div>
+    
+    <!-- Filters Modal (shared between tabs) -->
+    <div id="filtersModalShared" class="modal">
+        <div class="modal-content filters-modal-content">
+            <div class="modal-header">
+                <h2>Настройка фильтров</h2>
+                <span class="close-modal" onclick="closeFiltersModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Search Bar for Filters -->
+                <div class="filter-search-container">
+                    <input type="text" id="filterSearchInput" class="filter-search-input" placeholder="🔍 Поиск по фильтрам..." oninput="filterSearchResults()">
+                </div>
+                
+                <div class="filters-grid">
+                    <div class="filter-column">
+                        <div class="column-header">
+                            <h3>Направления (Board)</h3>
+                            <div>
+                                <button class="btn-mini" onclick="selectAllBoards()">Все</button>
+                                <button class="btn-mini" onclick="selectNoneBoards()">Снять</button>
+                            </div>
+                        </div>
+                        <div class="checkbox-list" id="boardCheckboxList">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <div class="filter-column">
+                        <div class="column-header">
+                            <h3>Проекты</h3>
+                            <div>
+                                <button class="btn-mini" onclick="selectAllProjects()">Все</button>
+                                <button class="btn-mini" onclick="selectNoneProjects()">Снять</button>
+                            </div>
+                        </div>
+                        <div class="checkbox-list" id="projectCheckboxList">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <div class="filter-column">
+                        <div class="column-header">
+                            <h3>Исполнители</h3>
+                            <div>
+                                <button class="btn-mini" onclick="selectAllAssignees()">Все</button>
+                                <button class="btn-mini" onclick="selectNoneAssignees()">Снять</button>
+                            </div>
+                        </div>
+                        <div class="checkbox-list" id="assigneeCheckboxList">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <div class="filter-column">
+                        <div class="column-header">
+                            <h3>Спринты</h3>
+                            <div>
+                                <button class="btn-mini" onclick="selectAllSprints()">Все</button>
+                                <button class="btn-mini" onclick="selectNoneSprints()">Снять</button>
+                            </div>
+                        </div>
+                        <div class="checkbox-list" id="sprintCheckboxList">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <div class="filter-column">
+                        <div class="column-header">
+                            <h3>Эпики</h3>
+                            <div>
+                                <button class="btn-mini" onclick="selectAllEpics()">Все</button>
+                                <button class="btn-mini" onclick="selectNoneEpics()">Снять</button>
+                            </div>
+                        </div>
+                        <div class="checkbox-list" id="epicCheckboxList">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="applyFilters()">Применить фильтры</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Details Modal -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content details-content">
+            <div class="modal-header">
+                <h2 id="detailsTitle">Детали задач</h2>
+                <div class="modal-header-actions">
+                    <button id="openInJiraBtn" class="btn-jira" onclick="openTasksInJira()" title="Открыть отфильтрованные задачи в Jira">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001z"/>
+                            <path d="M17.288 0H5.73a5.215 5.215 0 0 0 5.214 5.215h2.129v2.057a5.218 5.218 0 0 0 5.215 5.215V1.001A1.001 1.001 0 0 0 17.288 0z"/>
+                        </svg>
+                        Открыть в Jira
+                    </button>
+                    <span class="close-modal" onclick="closeDetails()">&times;</span>
+                </div>
+            </div>
+            
+            <!-- Tabs for Details -->
+            <div class="modal-tabs">
+                <button class="tab-btn active" onclick="switchDetailTab('tasks')">Список задач</button>
+                <button class="tab-btn" onclick="switchDetailTab('bugs')">Анализ Багов/Инцидентов</button>
+            </div>
+
+            <div class="modal-body">
+                <div id="drillDownControls" style="margin-bottom: 15px; display:none;">
+                    <button class="btn-primary btn-small" onclick="drillDownToAssignees()">
+                        👥 Детализация по исполнителям
+                    </button>
+                </div>
+
+                <!-- Tab: Task List -->
+                <div id="tab-tasks" class="detail-tab-content">
+                    <!-- Search Bar -->
+                    <div class="task-search-bar">
+                        <input 
+                            type="text" 
+                            id="taskSearchInput" 
+                            placeholder="🔍 Поиск по задачам (название, ключ, тип, приоритет, описание...)" 
+                            oninput="handleTaskSearch()"
+                        >
+                        <button class="btn-export btn-small" onclick="exportTasksToExcel()">
+                            📊 Экспорт
+                        </button>
+                        <button class="btn-reset btn-small" onclick="clearTaskSearch()" id="clearSearchBtn" style="display: none;">✕</button>
+                    </div>
+                    
+                    <!-- Task Filters -->
+                    <div class="task-filters">
+                        <div class="filter-row">
+                            <div class="task-filter-group">
+                                <label for="taskTypeFilter">Тип задачи</label>
+                                <select id="taskTypeFilter">
+                                    <option value="all">Все типы</option>
+                                </select>
+                            </div>
+                            <div class="task-filter-group">
+                                <label for="taskPriorityFilter">Приоритет</label>
+                                <select id="taskPriorityFilter">
+                                    <option value="all">Все приоритеты</option>
+                                </select>
+                            </div>
+                            <div class="task-filter-group">
+                                <label for="taskSeverityFilter">Severity</label>
+                                <select id="taskSeverityFilter">
+                                    <option value="all">Все severity</option>
+                                </select>
+                            </div>
+                            <div class="task-filter-group">
+                                <label for="taskBoardFilter">Board</label>
+                                <select id="taskBoardFilter">
+                                    <option value="all">Все boards</option>
+                                </select>
+                            </div>
+                            <div class="task-filter-group">
+                                <label for="taskProjectFilter">Проект</label>
+                                <select id="taskProjectFilter">
+                                    <option value="all">Все проекты</option>
+                                </select>
+                            </div>
+                            <button class="btn-reset btn-small" onclick="resetTaskFilters()" style="margin-left: auto; align-self: flex-end;">Сбросить</button>
+                        </div>
+                    </div>
+
+                    <div class="table-container" style="box-shadow: none; padding: 0; margin-top: 15px;">
+                        <table class="details-table">
+                            <thead>
+                                <tr>
+                                    <th class="sortable-task" onclick="sortTasksBy('summary')">
+                                        Задача <span id="task-icon-summary" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('key')">
+                                        Ключ <span id="task-icon-key" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('project')">
+                                        Проект <span id="task-icon-project" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('issuetype')">
+                                        Тип <span id="task-icon-issuetype" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('priority')">
+                                        Приоритет <span id="task-icon-priority" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('est')">
+                                        Оценка <span id="task-icon-est" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('spent')">
+                                        Затрачено <span id="task-icon-spent" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('overtime')" title="Время перетрека">
+                                        Перетрек <span id="task-icon-overtime" class="sort-icon"></span>
+                                    </th>
+                                    <th class="sortable-task" onclick="sortTasksBy('cycleTime')" title="Время жизни задачи от Todo до Done">
+                                        Время жизни <span id="task-icon-cycleTime" class="sort-icon"></span>
+                                    </th>
+                                    <th style="width: 100px;">Детали</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tasksTableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: Bug Analysis -->
+                <div id="tab-bugs" class="detail-tab-content" style="display: none;">
+                    <div class="bug-analysis-grid">
+                        <div class="analysis-card">
+                            <h4>Баги/Инциденты по Priority</h4>
+                            <div class="chart-mini-wrapper">
+                                <canvas id="bugPriorityChart"></canvas>
+                            </div>
+                            <div id="bugPriorityTable" class="mini-table"></div>
+                        </div>
+                        <div class="analysis-card">
+                            <h4>Баги/Инциденты по Severity</h4>
+                            <div class="chart-mini-wrapper">
+                                <canvas id="bugSeverityChart"></canvas>
+                            </div>
+                            <div id="bugSeverityTable" class="mini-table"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Details Modal -->
+    <div id="kpiModal" class="modal">
+        <div class="modal-content details-content">
+            <div class="modal-header">
+                <h2 id="kpiModalTitle">Детали KPI</h2>
+                <div class="modal-header-actions">
+                    <button id="openKPIInJiraBtn" class="btn-jira" onclick="openKPITasksInJira()" title="Открыть задачи в Jira">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001z"/>
+                            <path d="M17.288 0H5.73a5.215 5.215 0 0 0 5.214 5.215h2.129v2.057a5.218 5.218 0 0 0 5.215 5.215V1.001A1.001 1.001 0 0 0 17.288 0z"/>
+                        </svg>
+                        Открыть в Jira
+                    </button>
+                    <span class="close-modal" onclick="closeKPIModal()">&times;</span>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="kpiModalContent">
+                    <!-- Content will be populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Detail Modal (Description & Comments) -->
+    <div id="taskDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="taskDetailTitle">Детали задачи</h2>
+                <span class="close-modal" onclick="closeTaskDetail()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="task-detail-content">
+                    <div class="detail-section">
+                        <h4>📝 Описание</h4>
+                        <div id="taskDescription" class="detail-text"></div>
+                    </div>
+                    <div class="detail-section">
+                        <h4>💬 Комментарии (<span id="commentCount">0</span>)</h4>
+                        <div id="taskComments" class="comments-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Filter Modal -->
+    <div id="dateFilterModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2>📅 Фильтр по датам</h2>
+                <span class="close-modal" onclick="closeDateFilter()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Presets -->
+                <div style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">Быстрый выбор:</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn-preset" onclick="applyDatePreset('lastMonth')">Последний месяц</button>
+                        <button class="btn-preset" onclick="applyDatePreset('lastQuarter')">Последний квартал</button>
+                        <button class="btn-preset" onclick="applyDatePreset('thisYear')">Этот год</button>
+                        <button class="btn-preset" onclick="applyDatePreset('last3Months')">Последние 3 месяца</button>
+                        <button class="btn-preset" onclick="applyDatePreset('last6Months')">Последние 6 месяцев</button>
+                        <button class="btn-preset" onclick="applyDatePreset('all')">Все время</button>
+                    </div>
+                </div>
+
+                <!-- Custom Date Range -->
+                <div style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">Или выберите период:</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">От:</label>
+                            <input type="date" id="dateFrom" class="date-input">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">До:</label>
+                            <input type="date" id="dateTo" class="date-input">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Mode -->
+                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="comparePeriodsCheckbox" onchange="toggleComparison()">
+                        <span style="font-weight: 600;">Сравнить с предыдущим периодом</span>
+                    </label>
+                    
+                    <div id="comparisonDates" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                        <h5 style="margin-bottom: 10px; color: #666;">Период для сравнения:</h5>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-weight: 600;">От:</label>
+                                <input type="date" id="compareDateFrom" class="date-input">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-weight: 600;">До:</label>
+                                <input type="date" id="compareDateTo" class="date-input">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Selection Info -->
+                <div id="dateFilterInfo" style="padding: 10px; background: #e8f4f8; border-radius: 4px; margin-bottom: 15px; display: none;">
+                    <strong>Текущий период:</strong> <span id="currentPeriodText">-</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="resetDateFilter()">Сбросить</button>
+                <button class="btn-primary" onclick="applyDateFilter()">Применить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+    <script src="analytics.js"></script>
+</body>
+</html>
+<!-- Trends Tab Content - Insert this into dashboard.html -->
+
+<!-- Tab Navigation (add to controls section) -->
+<!--
+<div class="control-group tab-nav">
+    <button class="tab-nav-btn active" data-tab="metrics">📊 Метрики</button>
+    <button class="tab-nav-btn" data-tab="trends">📈 Тренды</button>
+    <button class="tab-nav-btn" data-tab="sprints">🏃 Спринты</button>
+</div>
+-->
+
+<!-- Old sections removed - now in separate tabs -->
+

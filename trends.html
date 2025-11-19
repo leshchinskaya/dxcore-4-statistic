@@ -1,0 +1,116 @@
+<!-- Trends Tab Content - Insert this into dashboard.html -->
+
+<!-- Tab Navigation (add to controls section) -->
+<!--
+<div class="control-group tab-nav">
+    <button class="tab-nav-btn active" data-tab="metrics">📊 Метрики</button>
+    <button class="tab-nav-btn" data-tab="trends">📈 Тренды</button>
+    <button class="tab-nav-btn" data-tab="sprints">🏃 Спринты</button>
+</div>
+-->
+
+<!-- Trends Section Content -->
+<div id="trendsSection" class="main-section" style="display: none;">
+    <h2 style="margin-bottom: 30px;">📈 Трендовый анализ</h2>
+    
+    <!-- Trend Summary Cards -->
+    <div class="summary-cards">
+        <div class="card">
+            <h3>Тренд производительности</h3>
+            <div class="value" id="trendPerf">-</div>
+            <div class="trend-indicator" id="trendPerfChange">-</div>
+        </div>
+        <div class="card">
+            <h3>Тренд времени выполнения</h3>
+            <div class="value" id="trendCycle">-</div>
+            <div class="trend-indicator" id="trendCycleChange">-</div>
+        </div>
+        <div class="card">
+            <h3>Тренд CR</h3>
+            <div class="value" id="trendCR">-</div>
+            <div class="trend-indicator" id="trendCRChange">-</div>
+        </div>
+    </div>
+
+    <!-- Trend Charts -->
+    <div class="charts-grid">
+        <div class="chart-container full-width">
+            <h3>Производительность за последние 12 месяцев</h3>
+            <canvas id="trendPerfChart"></canvas>
+        </div>
+        <div class="chart-container full-width">
+            <h3>Среднее время выполнения за последние 12 месяцев</h3>
+            <canvas id="trendCycleChart"></canvas>
+        </div>
+        <div class="chart-container full-width">
+            <h3>Change Requests за последние 12 месяцев</h3>
+            <canvas id="trendCRChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Sprints Analysis Section -->
+<div id="sprintsSection" class="main-section" style="display: none;">
+    <h2 style="margin-bottom: 30px;">🏃 Анализ спринтов</h2>
+    
+    <!-- Sprint Selector -->
+    <div style="margin-bottom: 20px;">
+        <label for="sprintSelect" style="font-weight: 600; margin-right: 10px;">Выберите спринт:</label>
+        <select id="sprintSelect" style="padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd;">
+            <option value="">-- Выберите спринт --</option>
+        </select>
+    </div>
+
+    <!-- Sprint Summary -->
+    <div id="sprintSummary" class="summary-cards" style="display: none;">
+        <div class="card">
+            <h3>Всего задач</h3>
+            <div class="value" id="sprintTotalTasks">-</div>
+        </div>
+        <div class="card">
+            <h3>Завершено</h3>
+            <div class="value" id="sprintCompletedTasks">-</div>
+        </div>
+        <div class="card">
+            <h3>Velocity</h3>
+            <div class="value" id="sprintVelocity">-</div>
+            <div class="sub-text">задач/спринт</div>
+        </div>
+        <div class="card">
+            <h3>Производительность</h3>
+            <div class="value" id="sprintPerf">-</div>
+        </div>
+    </div>
+
+    <!-- Sprint Charts -->
+    <div id="sprintCharts" class="charts-grid" style="display: none;">
+        <div class="chart-container full-width">
+            <h3>Burndown Chart</h3>
+            <canvas id="burndownChart"></canvas>
+        </div>
+        <div class="chart-container full-width">
+            <h3>Velocity Chart (последние 10 спринтов)</h3>
+            <canvas id="velocityChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Capacity Planning -->
+    <div id="capacityPlanning" class="table-container" style="display: none; margin-top: 30px;">
+        <h3>📊 Планирование capacity</h3>
+        <table style="width: 100%; margin-top: 15px;">
+            <tr>
+                <td style="font-weight: 600; padding: 10px;">Средняя velocity:</td>
+                <td id="avgVelocity" style="padding: 10px;">-</td>
+            </tr>
+            <tr>
+                <td style="font-weight: 600; padding: 10px;">Рекомендуемый объем для следующего спринта:</td>
+                <td id="recommendedCapacity" style="padding: 10px;">-</td>
+            </tr>
+            <tr>
+                <td style="font-weight: 600; padding: 10px;">Диапазон (80-120%):</td>
+                <td id="capacityRange" style="padding: 10px;">-</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
