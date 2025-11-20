@@ -112,6 +112,12 @@ async function initializeDashboardWithData() {
     }
     
     // Reattach event listeners (using global DOM references)
+    const openDateFilterBtn = document.getElementById('openDateFilterBtn');
+    
+    if (openDateFilterBtn) {
+        openDateFilterBtn.addEventListener('click', openDateFilterModal);
+    }
+    
     if (openFiltersBtn) {
         openFiltersBtn.addEventListener('click', openFiltersModal);
     }
